@@ -16,7 +16,8 @@ export default function DocumentCard({ doc, onPreview, onShare }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Recently';
     try {
-      const d = new Date(dateStr);
+      const normalized = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : `${dateStr}Z`;
+      const d = new Date(normalized);
       if (isNaN(d.getTime())) return dateStr;
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {

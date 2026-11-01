@@ -1,4 +1,5 @@
 import urllib.request
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -66,8 +67,8 @@ def get_user_chat_sessions(
         {
             "id": s.id,
             "title": s.title,
-            "created_at": s.created_at.isoformat(),
-            "updated_at": s.updated_at.isoformat()
+            "created_at": (s.created_at.isoformat() + "Z") if s.created_at else None,
+            "updated_at": (s.updated_at.isoformat() + "Z") if s.updated_at else None
         }
         for s in sessions
     ]
@@ -99,7 +100,7 @@ def get_session_messages(
             "content": m.content,
             "document_references": m.document_references or [],
             "action_chips": m.action_chips or [],
-            "created_at": m.created_at.isoformat()
+            "created_at": (m.created_at.isoformat() + "Z") if m.created_at else None
         }
         for m in messages
     ]
@@ -232,6 +233,7 @@ async def stream_chat_message(
         db.add(session)
         db.commit()
     # 2. Persist User Message
+    session.updated_at = datetime.utcnow()
     user_msg = ChatMessage(session_id=session.id, sender="user", content=payload.message)
     db.add(user_msg)
     db.commit()

@@ -49,6 +49,7 @@ def execute_chat_turn(
         db.flush()
 
     # 2. Persist the User's Message
+    session.updated_at = now
     user_msg_record = ChatMessage(
         session_id=session.id,
         sender="user",
@@ -229,6 +230,6 @@ def execute_chat_turn(
             "content": assistant_text,
             "document_references": doc_references,
             "action_chips": action_chips,
-            "created_at": assistant_msg_record.created_at.isoformat()
+            "created_at": assistant_msg_record.created_at.isoformat() + "Z"
         }
     }

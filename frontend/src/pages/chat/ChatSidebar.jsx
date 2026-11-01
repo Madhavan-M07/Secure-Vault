@@ -15,15 +15,16 @@ export default function ChatSidebar({
 
   // Format relative timestamp
   const formatTime = (isoString) => {
-    if (!isoString) return 'Recent';
-    const date = new Date(isoString);
+    if (!isoString) return 'Just now';
+    const dateStr = isoString.endsWith('Z') || isoString.includes('+') ? isoString : `${isoString}Z`;
+    const date = new Date(dateStr);
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = Math.max(0, now.getTime() - date.getTime());
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 5) return 'Now';
+    if (diffMins < 2) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
