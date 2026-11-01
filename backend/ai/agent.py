@@ -138,15 +138,34 @@ def execute_chat_turn(
         f"ASSISTANT RESPONSE:"
     )
 
-    try:
-        model = genai.GenerativeModel(ai_config.GENERATIVE_MODEL)
-        gemini_resp = model.generate_content(prompt)
-        assistant_text = gemini_resp.text.strip()
-    except Exception as e:
-        print(f"[Gemini Agent Error]: {e}")
+    candidate_models = [
+        ai_config.GENERATIVE_MODEL,
+        "models/gemini-flash-latest",
+        "models/gemini-2.5-flash-lite",
+        "models/gemini-flash-lite-latest",
+        "models/gemini-2.5-flash"
+    ]
+    seen = set()
+    models_to_try = [m for m in candidate_models if m and not (m in seen or seen.add(m))]
+
+    assistant_text = ""
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            gemini_resp = model.generate_content(prompt)
+            assistant_text = gemini_resp.text.strip()
+            if assistant_text:
+                break
+        except Exception as e:
+            print(f"[Agent Model {model_name} Error]: {e}")
+            continue
+
+    if not assistant_text:
         if matched_docs_dict:
             first_doc = next(iter(matched_docs_dict.values()))
             assistant_text = f"I found your document: **{first_doc.title}** in your {first_doc.category} vault."
+        elif user_message.lower().strip() in ["hi", "hello", "hey", "hy"]:
+            assistant_text = "Hello! I am your **Vault Assistant**. How can I help you with your documents today?"
         else:
             assistant_text = "I searched your vault but could not find any matching documents or details for that query."
 

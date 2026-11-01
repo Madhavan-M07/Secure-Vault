@@ -47,6 +47,7 @@ export async function streamChatMessage({
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    let completed = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -64,6 +65,7 @@ export async function streamChatMessage({
             if (data.type === 'token' && onToken) {
               onToken(data.token);
             } else if (data.type === 'done' && onComplete) {
+              completed = true;
               onComplete(data);
             }
           } catch (e) {
@@ -71,6 +73,15 @@ export async function streamChatMessage({
           }
         }
       }
+    }
+
+    // Safety fallback: ensure loading spinner never hangs if stream finishes
+    if (!completed && onComplete) {
+      onComplete({
+        session_id: sessionId,
+        document_references: [],
+        action_chips: [],
+      });
     }
   } catch (err) {
     if (onError) onError(err);

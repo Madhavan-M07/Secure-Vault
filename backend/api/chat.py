@@ -245,40 +245,96 @@ async def stream_chat_message(
         f"Context:\n{context_str}\n\n"
         f"User Question: {payload.message}\nAssistant:"
     )
-    # 4. SSE Stream Generator
+    # 4. SSE Stream Generator with Multi-Model Quota Failover
     async def event_generator():
-        model = genai.GenerativeModel(ai_config.GENERATIVE_MODEL)
-        gemini_stream = model.generate_content(prompt, stream=True)
-        
         full_content = []
-        # Stream each token to the frontend in real time
-        for chunk in gemini_stream:
-            token = chunk.text or ""
-            full_content.append(token)
-            yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
-        # Format Document Cards from vector matches
-        doc_refs = []
-        for vr in vector_results:
-            doc_refs.append({
-                "id": vr["document_id"],
-                "title": vr["document_title"],
-                "category": vr["category"],
-                "file_size_bytes": vr["file_size_bytes"],
-                "file_url": vr["file_url"],
-                "created_at": vr.get("created_at") or "Recent"
-            })
-        action_chips = ["Check document details", "Share this document"] if doc_refs else ["Find my documents"]
+        if ai_config.GEMINI_API_KEY:
+            genai.configure(api_key=ai_config.GEMINI_API_KEY)
+
+        # Multi-model cascade list (tries models in order if one hits 429 quota)
+        candidate_models = [
+            ai_config.GENERATIVE_MODEL,
+            "models/gemini-flash-latest",
+            "models/gemini-2.5-flash-lite",
+            "models/gemini-flash-lite-latest",
+            "models/gemini-2.5-flash"
+        ]
+        seen = set()
+        models_to_try = [m for m in candidate_models if m and not (m in seen or seen.add(m))]
+
+        stream_succeeded = False
+        last_error = None
+
+        for model_name in models_to_try:
+            try:
+                model = genai.GenerativeModel(model_name)
+                gemini_stream = model.generate_content(prompt, stream=True)
+
+                for chunk in gemini_stream:
+                    token = ""
+                    try:
+                        token = chunk.text or ""
+                    except Exception:
+                        if hasattr(chunk, "candidates") and chunk.candidates:
+                            first_cand = chunk.candidates[0]
+                            if hasattr(first_cand, "content") and first_cand.content and first_cand.content.parts:
+                                token = first_cand.content.parts[0].text or ""
+
+                    if token:
+                        full_content.append(token)
+                        payload_data = {"type": "token", "token": token}
+                        yield f"data: {json.dumps(payload_data)}\n\n"
+
+                stream_succeeded = True
+                break
+            except Exception as e:
+                print(f"[Model {model_name} failed]: {e}")
+                last_error = e
+                if full_content:
+                    break
+                continue
+
+        # If all candidate models failed or quota was exhausted across all
+        if not stream_succeeded and not full_content:
+            print(f"[All Gemini Models Exhausted]: {last_error}")
+            if doc_refs:
+                doc_names = ", ".join([d["title"] for d in doc_refs])
+                fallback_text = (
+                    f"I found the following document(s) in your vault: **{doc_names}**.\n\n"
+                    "*(Note: AI synthesis is temporarily operating in direct document mode.)*"
+                )
+            elif payload.message.lower().strip() in ["hi", "hello", "hey", "hy"]:
+                fallback_text = (
+                    "Hello! I am your **Vault Assistant**.\n\n"
+                    "I am ready to help you locate, inspect, and manage your private documents in SecureVault. "
+                    "Ask me about any document, such as *'Show my driving licence'* or *'Find my degree certificate'*."
+                )
+            else:
+                fallback_text = (
+                    "I searched your vault, but could not find any documents matching that query. "
+                    "Try searching by file name or document category."
+                )
+
+            full_content.append(fallback_text)
+            payload_data = {"type": "token", "token": fallback_text}
+            yield f"data: {json.dumps(payload_data)}\n\n"
+
         # Save assistant message to DB after stream finishes
-        complete_text = "".join(full_content)
-        asst_msg = ChatMessage(
-            session_id=session.id,
-            sender="assistant",
-            content=complete_text,
-            document_references=doc_refs,
-            action_chips=action_chips
-        )
-        db.add(asst_msg)
-        db.commit()
+        complete_text = "".join(full_content) or "I have processed your request."
+        try:
+            asst_msg = ChatMessage(
+                session_id=session.id,
+                sender="assistant",
+                content=complete_text,
+                document_references=doc_refs,
+                action_chips=action_chips
+            )
+            db.add(asst_msg)
+            db.commit()
+        except Exception as db_err:
+            print(f"[Chat DB Save Error]: {db_err}")
+            db.rollback()
+
         # Emit the final completion payload with Document Cards and Action Chips
         final_payload = {
             "type": "done",
@@ -287,4 +343,13 @@ async def stream_chat_message(
             "action_chips": action_chips
         }
         yield f"data: {json.dumps(final_payload)}\n\n"
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
