@@ -9,6 +9,8 @@ import AdminRoute from './components/shared/AdminRoute';
 import AdminPage from './pages/AdminPage';
 import ChatPage from './pages/chat/ChatPage';
 import PricingPage from './pages/PricingPage';
+import AboutPage from './pages/AboutPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -42,6 +44,11 @@ export default function App() {
 
               {/* Public Share Link Access Route (No Login Required) */}
               <Route path="/shared/access/:shareToken" element={<SharedAccessPage />} />
+
+              {/* Public Informational & Legal Pages */}
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
 
               {/* Authenticated Dashboard Routes */}
               <Route
@@ -100,15 +107,6 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ChatPage />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/pricing"
-                element={
-                  <ProtectedRoute>
-                    <PricingPage />
                   </ProtectedRoute>
                 }
               />

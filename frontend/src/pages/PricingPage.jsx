@@ -14,11 +14,13 @@ import {
   Users,
 } from 'lucide-react';
 import DashboardLayout from '../features/dashboard/components/DashboardLayout';
+import PublicNavbar from '../components/public/PublicNavbar';
+import PublicFooter from '../components/public/PublicFooter';
 import { useAuth } from '../hooks/useAuth';
 
 export default function PricingPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'yearly'
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('pro');
@@ -110,9 +112,8 @@ export default function PricingPage() {
     alert(`Thank you for selecting the ${planId.toUpperCase()} plan! Billing checkout gateway will connect here.`);
   };
 
-  return (
-    <DashboardLayout>
-      <div className="max-w-6xl mx-auto py-6 sm:py-10 px-2 sm:px-4">
+  const pageContent = (
+    <div className="max-w-6xl mx-auto py-6 sm:py-10 px-2 sm:px-4">
         {/* 1. Header Banner */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 text-blue-600 dark:text-blue-400 text-xs font-semibold mb-4">
@@ -307,7 +308,18 @@ export default function PricingPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+  );
+
+  if (isAuthenticated) {
+    return <DashboardLayout>{pageContent}</DashboardLayout>;
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-[#070b14] text-zinc-900 dark:text-zinc-100 transition-colors">
+      <PublicNavbar />
+      <main className="flex-1">{pageContent}</main>
+      <PublicFooter />
+    </div>
   );
 }
 
