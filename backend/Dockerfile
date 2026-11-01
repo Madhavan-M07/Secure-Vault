@@ -8,9 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # 3. Set working directory
 WORKDIR /app
 
-# 4. Install system dependencies if required (curl for healthchecks)
+# 4. Install system dependencies (curl for healthchecks, libpq for PostgreSQL)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libpq-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
 # 5. Install Python dependencies
@@ -25,4 +27,3 @@ EXPOSE 8000
 
 # 8. Start production Uvicorn server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-

@@ -347,12 +347,14 @@ def get_system_health(
     # 4. Total activity ledger events
     total_activity_count = db.query(ActivityLog).count()
 
+    db_engine_name = "PostgreSQL (Neon)" if "postgres" in str(db.bind.url) else "SQLite"
+
     return {
         "status": "All Systems Operational",
         "services": [
             {"name": "API Services", "uptime": "Operational (0.4ms)", "status": "Operational"},
             {"name": "Storage (Cloudinary CDN)", "uptime": "Active & Synchronized", "status": "Operational"},
-            {"name": f"Database (SQLite - {db_latency_ms}ms)", "uptime": f"{db_latency_ms}ms latency", "status": "Operational"},
+            {"name": f"Database ({db_engine_name} - {db_latency_ms}ms)", "uptime": f"{db_latency_ms}ms latency", "status": "Operational"},
             {"name": "Authentication Gateway", "uptime": "Active (HS256 RBAC)", "status": "Operational"}
         ],
         "compliance": [
