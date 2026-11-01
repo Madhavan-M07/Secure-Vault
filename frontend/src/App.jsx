@@ -7,6 +7,7 @@ import SharedAccessPage from './pages/SharedAccessPage';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import AdminRoute from './components/shared/AdminRoute';
 import AdminPage from './pages/AdminPage';
+import ChatPage from './pages/chat/ChatPage';
 
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -89,6 +90,15 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <ChatPage />
                   </ProtectedRoute>
                 }
               />

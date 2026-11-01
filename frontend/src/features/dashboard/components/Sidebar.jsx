@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Bot,
 } from 'lucide-react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
@@ -44,6 +45,7 @@ export default function Sidebar() {
     { name: 'Activity', path: '/activity', icon: Clock },
     { name: 'Security', path: '/security', icon: ShieldCheck },
     { name: 'Settings', path: '/settings', icon: Settings },
+    { name: 'Chat', path: '/chat', icon: Bot },
     ...(user?.role === 'admin'
       ? [{ name: 'Admin Console', path: '/admin', icon: BarChart3 }]
       : []),
