@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import PromptLimitModal from '../../components/chat/PromptLimitModal';
 import DashboardLayout from '../../features/dashboard/components/DashboardLayout';
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
@@ -23,6 +25,13 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const storageKey = user ? `vault_ai_prompts_${user.id}` : 'vault_ai_prompts_guest';
+  const [promptCount, setPromptCount] = useState(() => {
+    return parseInt(localStorage.getItem(storageKey) || '0', 10);
+  });
 
   // Mobile state: 'sidebar' (list of conversations) or 'chat' (active chat window)
   const [mobileTab, setMobileTab] = useState(initialSessionId ? 'chat' : 'sidebar');
@@ -68,6 +77,19 @@ export default function ChatPage() {
   // 3. Handle Sending a Message with Real-Time Streaming
   const handleSendMessage = async (text) => {
     if (!text.trim() || isLoading) return;
+
+    // Check prompt limit (2 free prompts for non-admin users)
+    const isAdmin = user?.role === 'admin';
+    if (!isAdmin && promptCount >= 2) {
+      setShowLimitModal(true);
+      return;
+    }
+
+    if (!isAdmin) {
+      const nextCount = promptCount + 1;
+      setPromptCount(nextCount);
+      localStorage.setItem(storageKey, String(nextCount));
+    }
 
     // Switch mobile view to chat window
     setMobileTab('chat');
@@ -208,9 +230,20 @@ export default function ChatPage() {
             onSendMessage={handleSendMessage}
             suggestions={suggestions}
             onBackToSidebar={() => setMobileTab('sidebar')}
+            user={user}
+            promptCount={promptCount}
+            onOpenPricing={() => navigate('/pricing')}
           />
         </div>
       </div>
+
+      {/* Prompt Limit Paywall Modal */}
+      <PromptLimitModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        promptCount={promptCount}
+        maxPrompts={2}
+      />
     </DashboardLayout>
   );
 }

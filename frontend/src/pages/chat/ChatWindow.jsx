@@ -10,6 +10,9 @@ export default function ChatWindow({
   onSendMessage,
   suggestions = [],
   onBackToSidebar,
+  user,
+  promptCount = 0,
+  onOpenPricing,
 }) {
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
@@ -110,8 +113,31 @@ export default function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 3. Input Footer (pb-20 on mobile to clear bottom navigation if visible) */}
+      {/* 3. Input Footer */}
       <div className="p-3 sm:p-4 sm:px-8 bg-white dark:bg-[#0f172a] border-t border-zinc-200/80 dark:border-slate-800 shrink-0">
+        {/* Tier & Quota Bar */}
+        <div className="mb-2.5 px-3 py-1.5 rounded-xl bg-zinc-50 dark:bg-slate-900 border border-zinc-200/70 dark:border-slate-800 flex items-center justify-between text-xs">
+          {user?.role === 'admin' ? (
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center space-x-1.5">
+              <span>⚡</span>
+              <span>Admin VIP • Unlimited AI Prompts</span>
+            </span>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <span className="text-zinc-500 dark:text-zinc-400 text-[11px] sm:text-xs">
+                Free Plan: <strong className={promptCount >= 2 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-zinc-800 dark:text-zinc-200 font-bold'}>{promptCount}/2</strong> prompts used
+              </span>
+              <button
+                type="button"
+                onClick={onOpenPricing}
+                className="text-blue-600 dark:text-blue-400 font-bold hover:underline text-[11px] sm:text-xs ml-2"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          )}
+        </div>
+
         <ChatInput
           onSendMessage={onSendMessage}
           isLoading={isLoading}

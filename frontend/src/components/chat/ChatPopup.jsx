@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bot, User, Sparkles } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import PromptLimitModal from './PromptLimitModal';
 import ChatHeader from './ChatHeader';
 import ChatInput from './ChatInput';
 import DocumentCard from '../../pages/chat/DocumentCard';
@@ -19,6 +22,13 @@ export default function ChatPopup({ isOpen, onMinimize, onClose }) {
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const storageKey = user ? `vault_ai_prompts_${user.id}` : 'vault_ai_prompts_guest';
+  const [promptCount, setPromptCount] = useState(() => {
+    return parseInt(localStorage.getItem(storageKey) || '0', 10);
+  });
 
   // Load dynamic prompt suggestions
   useEffect(() => {
@@ -40,6 +50,19 @@ export default function ChatPopup({ isOpen, onMinimize, onClose }) {
 
   const handleSendMessage = async (text) => {
     if (!text.trim() || isLoading) return;
+
+    // Check prompt limit (2 free prompts for non-admin users)
+    const isAdmin = user?.role === 'admin';
+    if (!isAdmin && promptCount >= 2) {
+      setShowLimitModal(true);
+      return;
+    }
+
+    if (!isAdmin) {
+      const nextCount = promptCount + 1;
+      setPromptCount(nextCount);
+      localStorage.setItem(storageKey, String(nextCount));
+    }
 
     // 1. Add User message immediately
     const userMsgId = `user-${Date.now()}`;
@@ -218,6 +241,40 @@ export default function ChatPopup({ isOpen, onMinimize, onClose }) {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Tier Quota Bar */}
+      <div className="px-3.5 py-1.5 bg-zinc-50 dark:bg-slate-900/60 border-t border-zinc-200/60 dark:border-slate-800 flex items-center justify-between text-[11px] shrink-0">
+        {user?.role === 'admin' ? (
+          <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center space-x-1">
+            <span>⚡</span>
+            <span>Admin VIP • Unlimited AI Prompts</span>
+          </span>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <span className="text-zinc-500 dark:text-zinc-400">
+              Free Plan: <strong className={promptCount >= 2 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-zinc-700 dark:text-zinc-300 font-bold'}>{promptCount}/2</strong> prompts used
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                navigate('/pricing');
+              }}
+              className="text-blue-600 dark:text-blue-400 font-bold hover:underline ml-2"
+            >
+              Upgrade
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Prompt Limit Paywall Modal */}
+      <PromptLimitModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        promptCount={promptCount}
+        maxPrompts={2}
+      />
 
       {/* Input */}
       <ChatInput

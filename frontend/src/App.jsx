@@ -8,6 +8,7 @@ import ProtectedRoute from './components/shared/ProtectedRoute';
 import AdminRoute from './components/shared/AdminRoute';
 import AdminPage from './pages/AdminPage';
 import ChatPage from './pages/chat/ChatPage';
+import PricingPage from './pages/PricingPage';
 
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -99,6 +100,15 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ChatPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/pricing"
+                element={
+                  <ProtectedRoute>
+                    <PricingPage />
                   </ProtectedRoute>
                 }
               />
