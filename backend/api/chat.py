@@ -12,6 +12,11 @@ from models.chat import ChatSession, ChatMessage, DocumentChunk
 from ai.agent import execute_chat_turn
 from ai.parsers import extract_text_from_pdf, extract_text_from_image, chunk_document_text
 from ai.vector_store import index_document
+import json
+from fastapi.responses import StreamingResponse
+import google.generativeai as genai
+from ai.config import ai_config
+from ai.vector_store import search_user_vault
 
 router = APIRouter(
     prefix="/chat",
@@ -205,3 +210,81 @@ def index_all_user_documents(
         "indexed_documents": indexed_count,
         "total_chunks_created": total_chunks
     }
+
+@router.post("/stream")
+async def stream_chat_message(
+    payload: ChatMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    ChatGPT-style real-time token streaming using Server-Sent Events (SSE).
+    """
+    # 1. Resolve Session
+    session = None
+    if payload.session_id:
+        session = db.query(ChatSession).filter(
+            ChatSession.id == payload.session_id,
+            ChatSession.user_id == current_user.id
+        ).first()
+    if not session:
+        session = ChatSession(user_id=current_user.id, title=payload.message[:40].strip())
+        db.add(session)
+        db.commit()
+    # 2. Persist User Message
+    user_msg = ChatMessage(session_id=session.id, sender="user", content=payload.message)
+    db.add(user_msg)
+    db.commit()
+    # 3. Vector Search Context (Isolated to user)
+    vector_results = search_user_vault(db=db, user_id=current_user.id, query=payload.message, top_k=4)
+    
+    # Context Assembly
+    context_str = "\n".join([f"- {vr['document_title']}: {vr['content']}" for vr in vector_results])
+    prompt = (
+        "You are Vault Assistant for SecureVault. Answer concisely based on the user's documents.\n"
+        f"Context:\n{context_str}\n\n"
+        f"User Question: {payload.message}\nAssistant:"
+    )
+    # 4. SSE Stream Generator
+    async def event_generator():
+        model = genai.GenerativeModel(ai_config.GENERATIVE_MODEL)
+        gemini_stream = model.generate_content(prompt, stream=True)
+        
+        full_content = []
+        # Stream each token to the frontend in real time
+        for chunk in gemini_stream:
+            token = chunk.text or ""
+            full_content.append(token)
+            yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
+        # Format Document Cards from vector matches
+        doc_refs = []
+        for vr in vector_results:
+            doc_refs.append({
+                "id": vr["document_id"],
+                "title": vr["document_title"],
+                "category": vr["category"],
+                "file_size_bytes": vr["file_size_bytes"],
+                "file_url": vr["file_url"],
+                "created_at": vr.get("created_at") or "Recent"
+            })
+        action_chips = ["Check document details", "Share this document"] if doc_refs else ["Find my documents"]
+        # Save assistant message to DB after stream finishes
+        complete_text = "".join(full_content)
+        asst_msg = ChatMessage(
+            session_id=session.id,
+            sender="assistant",
+            content=complete_text,
+            document_references=doc_refs,
+            action_chips=action_chips
+        )
+        db.add(asst_msg)
+        db.commit()
+        # Emit the final completion payload with Document Cards and Action Chips
+        final_payload = {
+            "type": "done",
+            "session_id": session.id,
+            "document_references": doc_refs,
+            "action_chips": action_chips
+        }
+        yield f"data: {json.dumps(final_payload)}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
