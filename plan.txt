@@ -1,0 +1,172 @@
+================================================================================
+LIFETIME CREDENTIAL & DOCUMENT VAULT: FULL-STACK DYNAMIC TRANSFORMATION PLAN
+================================================================================
+Author: Senior Software Architect
+Target: Transform Static Dashboard into a Fully Dynamic, Multi-Tenant SaaS Engine
+Storage Strategy: Cloudinary Free Tier (Development) -> AWS S3 / Cloudflare R2 (Scale)
+
+--------------------------------------------------------------------------------
+1. CURRENT STATIC VS DYNAMIC AUDIT
+--------------------------------------------------------------------------------
+Currently in Frontend:
+  [X] User Greeting: Extracted from email, but lacks custom First Name / Profile.
+  [X] Top 4 Stat Cards: Hardcoded ("286 Documents", "12 Shared Links", "2.4 GB").
+  [X] 8 Category Badges: Hardcoded counts (Academic 48, Identity 12, etc.).
+  [X] Recent Documents Table: Static mock data array (Degree, PAN Card, Offer Letter).
+  [X] Sidebar Storage Bar: Hardcoded (2.4 GB / 10 GB).
+  [X] Upload Document Button: Currently triggers an alert() placeholder.
+  [X] Multi-User Isolation: A brand new user currently sees the same mock numbers.
+
+Target Dynamic State:
+  [✓] When "Madhavan" logs in: Sees only Madhavan's uploaded certificates and storage.
+  [✓] When a brand new user registers:
+      - Total Documents: 0
+      - Storage: 0 MB / 10 GB (0%)
+      - Categories: 0 documents
+      - Recent Table: Shows a clean empty state: "No documents yet. Click Upload to secure your first certificate."
+  [✓] Real Upload Flow: User drags/selects a PDF/PNG -> Uploads to Cloudinary -> Backend computes SHA-256 fingerprint -> Saved to Database -> Dashboard updates in real time!
+
+--------------------------------------------------------------------------------
+2. DATABASE SCHEMA DESIGN (Multi-Tenant Isolation)
+--------------------------------------------------------------------------------
+We will create a new table `documents` in `backend/models/document.py`:
+
+Table: documents
+--------------------------------------------------------------------------------
+Column             | Type           | Description
+--------------------------------------------------------------------------------
+id                 | INTEGER        | Primary Key (auto-incrementing)
+user_id            | INTEGER        | Foreign Key -> users.id (Strict tenant isolation)
+title              | VARCHAR(255)   | e.g. "10th Standard Secondary Marksheet"
+category           | VARCHAR(50)    | "Academic", "Identity", "Financial", "Employment",
+                   |                | "Personal", "Healthcare", "Property", "Others"
+file_url           | TEXT           | Secure HTTPS URL from Cloudinary CDN
+public_id          | VARCHAR(255)   | Cloudinary unique asset ID (used for deletion)
+file_type          | VARCHAR(50)    | "application/pdf", "image/png", "image/jpeg"
+file_size_bytes    | BIGINT         | Actual file size in bytes (e.g. 1450000 = 1.45 MB)
+sha256_hash        | CHAR(64)       | Cryptographic checksum of file bytes for tamper-proofing
+is_verified        | BOOLEAN        | Default: True (integrity verified)
+created_at         | DATETIME       | Upload timestamp (UTC)
+--------------------------------------------------------------------------------
+Security Guard: All queries must filter by `WHERE user_id = current_user.id`.
+No user can ever read, list, or delete another user's document.
+
+--------------------------------------------------------------------------------
+3. BACKEND API ENDPOINTS SPECIFICATION
+--------------------------------------------------------------------------------
+Module: backend/api/v1/documents.py (Prefix: /api/v1/documents)
+
+1. GET /api/v1/documents/dashboard-stats
+   - Purpose: Powers the top 4 stat cards & sidebar storage meter.
+   - Response:
+     {
+       "total_documents": int,
+       "storage_used_bytes": int,
+       "storage_limit_bytes": 10737418240, // 10 GB in bytes
+       "storage_used_formatted": "14.2 MB",
+       "storage_percentage": 1.4,
+       "shared_links_count": 0,
+       "encryption_status": "AES-256 & SHA-256 Active"
+     }
+
+2. GET /api/v1/documents/categories-summary
+   - Purpose: Powers the 8 category cards with real counts.
+   - Response:
+     {
+       "Academic": 3,
+       "Identity": 1,
+       "Financial": 0,
+       "Employment": 1,
+       "Personal": 0,
+       "Healthcare": 0,
+       "Property": 0,
+       "Others": 0
+     }
+
+3. GET /api/v1/documents/recent?limit=5
+   - Purpose: Powers the Recent Documents table on the Dashboard.
+   - Response: List[DocumentResponse] ordered by `created_at DESC`.
+
+4. GET /api/v1/documents
+   - Query Params: `?category=Academic&search=degree&page=1&limit=20`
+   - Purpose: Full documents repository with search and filter.
+
+5. POST /api/v1/documents/upload
+   - Consumes: Multipart form data (file: UploadFile, title: str, category: str)
+   - Execution:
+     1. Reads file bytes into memory stream.
+     2. Computes `hashlib.sha256(bytes).hexdigest()`.
+     3. Streams file directly to Cloudinary (folder: `vault/user_{user_id}`).
+     4. Saves metadata row into `documents` table linked to `current_user.id`.
+     5. Returns new Document object with `file_url` and `sha256_hash`.
+
+6. DELETE /api/v1/documents/{id}
+   - Purpose: Deletes asset from Cloudinary and deletes record from database.
+
+--------------------------------------------------------------------------------
+4. STORAGE ENGINE ADAPTER PATTERN (Cloudinary -> S3 Ready)
+--------------------------------------------------------------------------------
+Architecture Pattern: Storage Service Abstraction
+File: `backend/core/storage.py`
+
+Interface:
+  - `upload_file(file_bytes, filename, folder) -> { url, public_id, size }`
+  - `delete_file(public_id) -> bool`
+
+Implementation:
+  - Phase 1: `CloudinaryStorage` using `cloudinary` Python SDK.
+    Free tier credentials added to `backend/.env`:
+      CLOUDINARY_CLOUD_NAME=...
+      CLOUDINARY_API_KEY=...
+      CLOUDINARY_API_SECRET=...
+  - Phase 2 (Scale): Swap implementation to `S3Storage` / `CloudflareR2`
+    without touching any API route or model code!
+
+--------------------------------------------------------------------------------
+5. FRONTEND INTEGRATION PLAN
+--------------------------------------------------------------------------------
+1. New Service: `frontend/src/features/dashboard/services/documentService.js`
+   - `fetchDashboardStats()`
+   - `fetchCategoriesSummary()`
+   - `fetchRecentDocuments()`
+   - `uploadDocument(formData)`
+   - `deleteDocument(id)`
+
+2. New UI Component: `frontend/src/features/dashboard/components/UploadModal.jsx`
+   - Clean monochrome modal dialog:
+     - Document Title input (e.g. "10th Marksheet")
+     - Category dropdown (Academic, Identity, Financial, etc.)
+     - Drag & Drop file zone (PDF, PNG, JPG)
+     - Upload progress indicator
+     - Error handling
+
+3. Update Existing Components with Real Props & Hooks:
+   - `Sidebar.jsx`: Receives real storage % and storage bytes.
+   - `StatsOverview.jsx`: Renders real `dashboardStats`.
+   - `CategoryGrid.jsx`: Displays live category counts.
+   - `RecentDocumentsTable.jsx`: Renders real documents with empty state if 0.
+   - `DashboardOverview.jsx`: Orchestrates fetching on mount via custom hook `useDashboardData()`.
+
+--------------------------------------------------------------------------------
+6. IMPLEMENTATION ROADMAP (One Step at a Time)
+--------------------------------------------------------------------------------
+Step 1: Backend Storage & DB Model
+  - Add `cloudinary` to `backend/requirements.txt`.
+  - Create `backend/models/document.py` table model.
+  - Create `backend/core/storage.py` (Cloudinary service).
+
+Step 2: Backend API Endpoints & Schemas
+  - Create `backend/schemas/document.py` (Pydantic schemas).
+  - Create `backend/api/v1/documents.py` (Endpoints).
+  - Mount router in `backend/main.py`.
+
+Step 3: Frontend Document Service & Modal
+  - Build `documentService.js` inside `features/dashboard/services/`.
+  - Build `UploadModal.jsx` for dragging & dropping marksheets.
+
+Step 4: Connect Live Data & Empty State
+  - Replace static mock data with live API hooks.
+  - Test registration of a fresh user (verify clean 0-doc state).
+  - Test uploading a real PDF/image (verify real-time storage bar update!).
+================================================================================
+
