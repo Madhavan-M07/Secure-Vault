@@ -11,6 +11,7 @@ from models.shared_link import SharedLink
 from schemas.document import DocumentResponse, DashboardStatsResponse, CategoriesSummaryResponse
 from api.deps import get_current_user
 from core.activity import log_activity
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
 
 router = APIRouter(prefix="/documents", tags=["Documents & Vault"])
 
@@ -111,10 +112,38 @@ def list_documents(
         query = query.filter(Document.title.ilike(f"%{search}%"))
 
     return query.order_by(Document.created_at.desc()).all()
+def auto_vectorize_document_task(document_id: int, user_id: int, file_bytes: bytes, file_type: str):
+    """
+    Background worker: Automatically extracts, chunks, and vectorizes newly uploaded documents.
+    Runs asynchronously so the user's upload response is instant.
+    """
+    from core.database import SessionLocal
+    from ai.parsers import extract_text_from_pdf, extract_text_from_image, chunk_document_text
+    from ai.vector_store import index_document
+
+    db = SessionLocal()
+    try:
+        # 1. Parse text (PDF vs Image OCR)
+        if "pdf" in file_type.lower():
+            pages = extract_text_from_pdf(file_bytes)
+        else:
+            pages = extract_text_from_image(file_bytes, mime_type=file_type)
+
+        # 2. Chunk and Index in Neon Vector DB
+        if pages:
+            chunks = chunk_document_text(pages)
+            if chunks:
+                count = index_document(db, document_id, user_id, chunks)
+                print(f"[Auto-Vectorized] Successfully indexed {count} vector chunks for Document #{document_id}!")
+    except Exception as e:
+        print(f"[Auto-Vectorize Error for Doc #{document_id}]: {e}")
+    finally:
+        db.close()
 
 # 5. UPLOAD DOCUMENT ENDPOINT
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    background_tasks: BackgroundTasks,  # <-- Injected here
     file: UploadFile = File(...),
     title: str = Form(...),
     category: str = Form("Academic"),
@@ -159,16 +188,27 @@ async def upload_document(
     db.commit()
     db.refresh(new_doc)
 
+    # 4. Trigger Automatic Background Vectorization Hook!
+    background_tasks.add_task(
+        auto_vectorize_document_task,
+        new_doc.id,
+        current_user.id,
+        file_bytes,
+        new_doc.file_type
+    )
+
+    # 5. Log activity
     log_activity(
         db=db,
         user_id=current_user.id,
-        action_type="Upload",
+        action_type="upload",
         category="Documents",
-        title=f"Uploaded {new_doc.title}",
-        detail=f"{format_bytes(new_doc.file_size_bytes)} • {new_doc.category}"
+        title="Document Uploaded",
+        detail=f"Uploaded '{title}' ({category}) - SHA-256 verified"
     )
 
     return new_doc
+
 
 # 6. DELETE DOCUMENT ENDPOINT
 @router.delete("/{document_id}")

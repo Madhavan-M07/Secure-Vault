@@ -13,7 +13,20 @@ from api.activity import router as activity_router
 import models.user_settings
 from api.settings import router as settings_router
 from api.admin import router as admin_router
+from sqlalchemy import text
+from core.database import engine, Base
+import models.user
+import models.document
+import models.shared_link
+import models.activity_log
+import models.user_settings
+import models.chat  # Registers document_chunks, chat_sessions, and chat_messages
+from api.chat import router as chat_router
 
+# 1. Enable pgvector extension and create all tables
+with engine.connect() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+    conn.commit()
 
 # 1. Create the database tables on startup (if they don't exist yet)
 Base.metadata.create_all(bind=engine)
@@ -54,6 +67,7 @@ app.include_router(shared_router, prefix="/api/v1")
 app.include_router(activity_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 
 # 5. Root Health Check Endpoint
 @app.get("/", tags=["Health"])
