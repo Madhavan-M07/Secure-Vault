@@ -1,4 +1,4 @@
-import { Bot, Maximize2, Minus, X } from 'lucide-react';
+import { Bot, Maximize2, Minus, X, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function ChatHeader({ onMinimize, onClose, sessionId }) {
@@ -14,8 +14,17 @@ export default function ChatHeader({ onMinimize, onClose, sessionId }) {
   };
 
   return (
-    <div className="flex items-center justify-between p-3.5 sm:p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-2xl shadow-xs">
+    <div className="flex items-center justify-between p-3.5 sm:p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-none sm:rounded-t-2xl shadow-xs">
       <div className="flex items-center space-x-2.5 min-w-0">
+        {/* On mobile, show back arrow to close */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="sm:hidden p-1 -ml-1 text-white/90 hover:text-white"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
         <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
           <Bot className="w-4 h-4 text-white" />
         </div>
@@ -30,12 +39,12 @@ export default function ChatHeader({ onMinimize, onClose, sessionId }) {
       </div>
 
       <div className="flex items-center space-x-1 shrink-0">
-        {/* Minimize Button */}
+        {/* Minimize Button (Desktop only) */}
         <button
           type="button"
           onClick={onMinimize}
           title="Minimize"
-          className="p-1 rounded-lg hover:bg-white/15 text-blue-100 hover:text-white transition-colors"
+          className="hidden sm:inline-flex p-1.5 rounded-lg hover:bg-white/15 text-blue-100 hover:text-white transition-colors"
         >
           <Minus className="w-4 h-4" />
         </button>
@@ -45,7 +54,7 @@ export default function ChatHeader({ onMinimize, onClose, sessionId }) {
           type="button"
           onClick={handleExpand}
           title="Open in full screen"
-          className="p-1 rounded-lg hover:bg-white/15 text-blue-100 hover:text-white transition-colors"
+          className="p-1.5 rounded-lg hover:bg-white/15 text-blue-100 hover:text-white transition-colors"
         >
           <Maximize2 className="w-3.5 h-3.5" />
         </button>
@@ -55,7 +64,7 @@ export default function ChatHeader({ onMinimize, onClose, sessionId }) {
           type="button"
           onClick={onClose}
           title="Close assistant"
-          className="p-1 rounded-lg hover:bg-white/15 text-blue-100 hover:text-white transition-colors"
+          className="p-1.5 rounded-lg hover:bg-white/15 text-blue-100 hover:text-white transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -63,4 +72,3 @@ export default function ChatHeader({ onMinimize, onClose, sessionId }) {
     </div>
   );
 }
-

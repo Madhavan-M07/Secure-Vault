@@ -30,7 +30,7 @@ export default function ChatInput({ onSendMessage, isLoading, placeholder = "Ask
   return (
     <form
       onSubmit={handleSubmit}
-      className="p-3 bg-white dark:bg-[#0f172a] border-t border-zinc-200/80 dark:border-slate-800 rounded-b-2xl flex items-center space-x-2"
+      className="p-3 pb-3 sm:pb-3 bg-white dark:bg-[#0f172a] border-t border-zinc-200/80 dark:border-slate-800 rounded-none sm:rounded-b-2xl flex items-center space-x-2"
     >
       {/* Hidden file input */}
       <input

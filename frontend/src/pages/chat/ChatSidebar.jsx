@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, MessageSquare, Search, Trash2, Clock, Trash } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, MessageSquare, Search, Trash2, Clock, Trash, ArrowLeft } from 'lucide-react';
 
 export default function ChatSidebar({
   sessions = [],
@@ -9,6 +10,7 @@ export default function ChatSidebar({
   onDeleteSession,
   onClearAll,
 }) {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
 
   // Format relative timestamp
@@ -38,6 +40,19 @@ export default function ChatSidebar({
 
   return (
     <div className="w-full lg:w-72 flex flex-col h-full bg-white dark:bg-[#0c1424] border-r border-zinc-200/80 dark:border-slate-800 p-4 transition-colors">
+      {/* Mobile-only Top Navigation Bar back to Dashboard */}
+      <div className="flex lg:hidden items-center justify-between pb-3 mb-2 border-b border-zinc-100 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard')}
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Dashboard</span>
+        </button>
+        <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Conversations</span>
+      </div>
+
       {/* 1. New Chat Button */}
       <button
         type="button"

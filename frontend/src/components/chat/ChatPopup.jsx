@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bot, User, Sparkles, Loader2 } from 'lucide-react';
+import { Bot, User, Sparkles } from 'lucide-react';
 import ChatHeader from './ChatHeader';
 import ChatInput from './ChatInput';
 import DocumentCard from '../../pages/chat/DocumentCard';
@@ -116,7 +116,7 @@ export default function ChatPopup({ isOpen, onMinimize, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 sm:right-6 z-50 w-[92vw] sm:w-[390px] h-[520px] max-h-[80vh] flex flex-col bg-white dark:bg-[#0b1324] rounded-2xl border border-zinc-200/90 dark:border-slate-800 shadow-2xl shadow-blue-950/20 animate-in fade-in slide-in-from-bottom-5 duration-200 overflow-hidden">
+    <div className="fixed inset-0 sm:inset-auto sm:bottom-20 sm:right-6 z-50 w-full sm:w-[390px] h-[100dvh] sm:h-[540px] max-h-[100dvh] sm:max-h-[85vh] flex flex-col bg-white dark:bg-[#0b1324] rounded-none sm:rounded-2xl border-0 sm:border border-zinc-200/90 dark:border-slate-800 shadow-2xl shadow-blue-950/20 overflow-hidden animate-in fade-in duration-200">
       {/* Header */}
       <ChatHeader
         onMinimize={onMinimize}
@@ -228,4 +228,3 @@ export default function ChatPopup({ isOpen, onMinimize, onClose }) {
     </div>
   );
 }
-

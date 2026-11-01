@@ -24,14 +24,17 @@ export default function ChatPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Mobile state: 'sidebar' (list of conversations) or 'chat' (active chat window)
+  const [mobileTab, setMobileTab] = useState(initialSessionId ? 'chat' : 'sidebar');
+
   // 1. Load All Sessions & Initial Suggestions
   const loadSessions = useCallback(async () => {
     try {
       const data = await getChatSessions();
       setSessions(data || []);
 
-      // If no active session chosen, pick the first one
-      if (!activeSessionId && data && data.length > 0) {
+      // If no active session chosen on desktop, pick the first one
+      if (!activeSessionId && data && data.length > 0 && window.innerWidth >= 1024) {
         setActiveSessionId(data[0].id);
       }
     } catch (err) {
@@ -65,6 +68,9 @@ export default function ChatPage() {
   // 3. Handle Sending a Message with Real-Time Streaming
   const handleSendMessage = async (text) => {
     if (!text.trim() || isLoading) return;
+
+    // Switch mobile view to chat window
+    setMobileTab('chat');
 
     const userMsg = {
       id: `user-${Date.now()}`,
@@ -142,9 +148,16 @@ export default function ChatPage() {
   const handleNewChat = () => {
     setActiveSessionId(null);
     setMessages([]);
+    setMobileTab('chat');
   };
 
-  // 5. Delete a specific session
+  // 5. Select a Session (Opens Chat on Mobile)
+  const handleSelectSession = (id) => {
+    setActiveSessionId(id);
+    setMobileTab('chat');
+  };
+
+  // 6. Delete a specific session
   const handleDeleteSession = async (id) => {
     try {
       await deleteChatSession(id);
@@ -158,7 +171,7 @@ export default function ChatPage() {
     }
   };
 
-  // 6. Clear All Chats
+  // 7. Clear All Chats
   const handleClearAll = async () => {
     if (!window.confirm('Are you sure you want to clear all chat conversations?')) return;
     try {
@@ -166,33 +179,38 @@ export default function ChatPage() {
       setSessions([]);
       setActiveSessionId(null);
       setMessages([]);
+      setMobileTab('sidebar');
     } catch (err) {
       console.error('Failed to clear sessions:', err);
     }
   };
 
   return (
-    <DashboardLayout noPadding={true} hideHeader={true}>
-      <div className="flex flex-col lg:flex-row h-[calc(100vh)] w-full overflow-hidden">
-        {/* Sub-Sidebar for Chat History */}
-        <ChatSidebar
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSelectSession={(id) => setActiveSessionId(id)}
-          onNewChat={handleNewChat}
-          onDeleteSession={handleDeleteSession}
-          onClearAll={handleClearAll}
-        />
+    <DashboardLayout noPadding={true} hideHeader={true} hideMobileNav={true}>
+      <div className="flex flex-col lg:flex-row h-[100dvh] w-full overflow-hidden bg-[#f8fafc] dark:bg-[#070b13]">
+        {/* Sub-Sidebar: Visible on Desktop (lg:block), or on Mobile when viewing session list */}
+        <div className={`w-full lg:w-72 h-full shrink-0 ${mobileTab === 'sidebar' ? 'block' : 'hidden lg:block'}`}>
+          <ChatSidebar
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewChat={handleNewChat}
+            onDeleteSession={handleDeleteSession}
+            onClearAll={handleClearAll}
+          />
+        </div>
 
-        {/* Main Interactive Chat Window */}
-        <ChatWindow
-          messages={messages}
-          isLoading={isLoading}
-          onSendMessage={handleSendMessage}
-          suggestions={suggestions}
-        />
+        {/* Main Interactive Chat Window: Visible on Desktop (lg:flex), or on Mobile when viewing conversation */}
+        <div className={`flex-1 flex flex-col h-full overflow-hidden ${mobileTab === 'chat' ? 'flex' : 'hidden lg:flex'}`}>
+          <ChatWindow
+            messages={messages}
+            isLoading={isLoading}
+            onSendMessage={handleSendMessage}
+            suggestions={suggestions}
+            onBackToSidebar={() => setMobileTab('sidebar')}
+          />
+        </div>
       </div>
     </DashboardLayout>
   );
 }
-
