@@ -23,12 +23,16 @@ import models.user_settings
 import models.chat  # Registers document_chunks, chat_sessions, and chat_messages
 from api.chat import router as chat_router
 
-# 1. Enable pgvector extension and create all tables
-with engine.connect() as conn:
-    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-    conn.commit()
+# 1. Enable pgvector extension (PostgreSQL only) and create all tables
+if "postgresql" in str(engine.url.drivername):
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            conn.commit()
+    except Exception as e:
+        print(f"[Database Notice] pgvector extension check: {e}")
 
-# 1. Create the database tables on startup (if they don't exist yet)
+# Create the database tables on startup (if they don't exist yet)
 Base.metadata.create_all(bind=engine)
 
 # 2. Initialize FastAPI App

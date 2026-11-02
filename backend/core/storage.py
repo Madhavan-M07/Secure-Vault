@@ -19,25 +19,44 @@ def compute_sha256(file_bytes: bytes) -> str:
     """
     return hashlib.sha256(file_bytes).hexdigest()
 
-# 3. Upload File to Cloudinary
+import re
+import time
+
+# 3. Upload File to Cloudinary with Resilient Retry
 def upload_file_to_cloud(file_bytes: bytes, filename: str, user_id: int) -> dict:
     """
     Uploads raw file bytes to Cloudinary in an isolated folder for the user.
-    Supports PDFs, PNGs, and JPEGs (resource_type='auto').
+    Includes sanitization and automatic retry for initial connection/TLS drops.
     """
-    response = cloudinary.uploader.upload(
-        file_bytes,
-        folder=f"vault/user_{user_id}",
-        public_id=filename.rsplit(".", 1)[0],
-        resource_type="auto",
-        overwrite=True
-    )
+    if not settings.CLOUDINARY_CLOUD_NAME or not settings.CLOUDINARY_API_KEY:
+        raise ValueError("Cloudinary credentials are not configured in backend/.env")
 
-    return {
-        "file_url": response.get("secure_url"),
-        "public_id": response.get("public_id"),
-        "file_size_bytes": response.get("bytes", len(file_bytes)),
-    }
+    # Sanitize filename: replace spaces and special characters with underscores
+    base_name = filename.rsplit(".", 1)[0]
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', base_name)[:60]
+    public_id = f"{safe_name}_{int(time.time())}"
+
+    last_error = None
+    for attempt in range(2):
+        try:
+            response = cloudinary.uploader.upload(
+                file_bytes,
+                folder=f"vault/user_{user_id}",
+                public_id=public_id,
+                resource_type="auto",
+                overwrite=True
+            )
+            return {
+                "file_url": response.get("secure_url"),
+                "public_id": response.get("public_id"),
+                "file_size_bytes": response.get("bytes", len(file_bytes)),
+            }
+        except Exception as e:
+            last_error = e
+            if attempt == 0:
+                time.sleep(1.0)  # Brief pause to let connection reset
+
+    raise last_error
 
 # 4. Delete File from Cloudinary
 def delete_file_from_cloud(public_id: str, resource_type: str = "image") -> bool:

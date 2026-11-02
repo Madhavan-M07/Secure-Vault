@@ -25,10 +25,24 @@ export async function apiRequest(endpoint, options = {}) {
         headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(url, {
-        ...options,
-        headers,
-    });
+    let response;
+    try {
+        response = await fetch(url, {
+            ...options,
+            headers,
+        });
+    } catch (networkErr) {
+        // If initial request failed due to cold boot or dropped connection, retry once automatically
+        try {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            response = await fetch(url, {
+                ...options,
+                headers,
+            });
+        } catch {
+            throw new Error('Unable to connect to the server. Please check your connection or ensure the backend is running.');
+        }
+    }
 
     // 4. Parse server response
     let data;

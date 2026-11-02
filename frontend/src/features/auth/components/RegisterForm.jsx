@@ -30,8 +30,11 @@ export default function RegisterForm() {
     setIsSubmitting(true);
 
     try {
-      await register(email, password);
-      await login(email, password);
+      const data = await register(email, password);
+      // Fallback to separate login call only if access_token was not returned directly
+      if (!data?.access_token) {
+        await login(email, password);
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Registration failed');

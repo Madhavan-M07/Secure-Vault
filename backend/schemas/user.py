@@ -22,6 +22,8 @@ class UserResponse(UserBase):
     role: str
     is_active: bool
     created_at: datetime
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
 
     class Config:
         from_attributes = True  # Allows Pydantic to read SQLAlchemy model objects

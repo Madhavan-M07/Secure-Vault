@@ -37,7 +37,13 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (email, password) => {
-    return await registerUser(email, password);
+    const data = await registerUser(email, password);
+    if (data?.access_token) {
+      localStorage.setItem('token', data.access_token);
+      setToken(data.access_token);
+      setUser(data);
+    }
+    return data;
   };
 
   const logout = () => {

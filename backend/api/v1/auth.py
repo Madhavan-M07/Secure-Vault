@@ -46,6 +46,12 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     log_activity(db, new_user.id, "Security", "Account Created", "Lifetime Document Vault initialized", "Security")
 
+    # Issue access token immediately so the user doesn't need a redundant login round-trip
+    token_data = {"sub": new_user.email, "role": new_user.role}
+    access_token = create_access_token(data=token_data)
+    new_user.access_token = access_token
+    new_user.token_type = "bearer"
+
     return new_user
 
 # 2. LOGIN ENDPOINT (Supports standard OAuth2 Form Login)
